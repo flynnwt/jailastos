@@ -1,4 +1,4 @@
-# chailastos
+# jailastos
 Javascript for Elastos Carrier 
 
 <pre>
