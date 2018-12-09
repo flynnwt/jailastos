@@ -1,18 +1,22 @@
 //'use strict';
-// not with callbacks!!! must act like diff file
-
-// nested objects don't appear to work; maybe could do as a func returning object
+// NO! if using callbacks - i guess this applies...was losing variable access when doing callback....
+// https://github.com/svaarala/duktape/issues/1243
+// Note that if the script is declared strict ("use strict" on first line of file) then the above
+//  won't work because the function declaration will be local to the file. In that case you would
+//  need to find an alternate method to export it.
 
 // ----------------------------------------------------------------------------
 
 var common = new Common(); // print, settimeout, etc.
 
-function print(s) {
-   if (typeof(s) == 'undefined') {
-      common.print('');
-   } else {
-      common.print('' + s);
+function print() {
+   var i, s = '';
+
+   for (i = 0; i < arguments.length; i++) {
+      s = s + ' ' + arguments[i];
    }
+
+   common.print(s);
 }
 var console = {};
 console.log = print;
@@ -31,6 +35,10 @@ config.addNode('18.216.102.47', '33445', 'G5z8MqiNDFTadFUPfMdYsYtkUDbX5mNCMVHMZt
 config.addNode('18.216.6.197', '33445', 'H8sqhRrQuJZ6iLtP2wanxt4LzdNrN2NNFnpPdq1uJ9n2');
 config.addNode('52.83.171.135', '33445', '5tuHgK1Q4CYf4K5PutsEPK5E3Z7cbtEBdx7LwmdzqXHL');
 config.addNode('52.83.191.228', '33445', '3khtxZo89SBScAMaHhTvD68pPHiKxgZT6hTCSZZVgNEm');
+
+print(config);
+print();
+print();
 
 // ----------------------------------------------------------------------------
 
@@ -85,6 +93,12 @@ var cbFriendRequest = function(f, userid, msg) {
 };
 callbacks.set('friendrequest', 'cbFriendRequest');
 
+var cbFriendRemoved = function(f, userid, msg) {
+   print('friend removed! (' + userid + ') ' + msg);
+   printFriend(f);
+};
+callbacks.set('friendremoved', 'cbFriendRemoved');
+
 var cbFriendInfo = function(f) {
    print('friend updated');
    printFriend(f);
@@ -96,11 +110,17 @@ var cbFriendMsg = function(userid, msg) {
 };
 callbacks.set('friendmessage', 'cbFriendMsg');
 
+var cbFriendInvite = function(userid, data) {
+   print('invite: (' + userid + ') ' + data);
+};
+callbacks.set('friendinvite', 'cbFriendInvite');
+
+
 // ----------------------------------------------------------------------------
 
 var checkError = function() {
-   rc = ela.getError();
-   if (rc) {
+   state.error = ela.getError();
+   if (state.error) {
       print('*** Error: ' + rc + ' ***');
    }
 }
@@ -131,7 +151,19 @@ var printFriend = function(f) {
 // ----------------------------------------------------------------------------
 
 var state = {
+   error: 0,
+   disconnected: true,
+   address: null,
+   nodeid: null,
+   userid: null,
+   quit: false,
 
+   show: function() {
+      print('address: ' + this.address);
+      print('node id: ' + this.nodeid);
+      print('user id: ' + this.userid);
+      print();
+   }
 };
 
 // ----------------------------------------------------------------------------
@@ -152,6 +184,7 @@ var cbPrompt = function(cmdline) {
    }
 
    if (cmdline === 'quit') {
+      state.quit = true
       ela.quit();
    } else if (cmd === 'add') {
       ela.addFriend(tokens[0], tokens[1])
@@ -190,15 +223,8 @@ var cbPrompt = function(cmdline) {
          }
       }
    }
-
 };
 callbacks.set('prompt', 'cbPrompt');
-
-//print('Starting prompt in 10 seconds...');
-//setTimeout(function() {
-//   prompt.readlineAsync(); // could have it end after n
-//}, 10000);
-prompt.readlineAsync();
 
 var ela = new Ela();
 var rc = ela.init(config);
@@ -207,15 +233,30 @@ if (!rc) {
    ela.quit();
 }
 
-print('address: ' + ela.getAddress());
-print(' nodeid: ' + ela.getNodeid());
-print(' userid: ' + ela.getUserid());
-print('error=' + ela.getError());
-print();
+state.address = ela.getAddress();
+state.nodeid = ela.getNodeid();
+state.userid = ela.getUserid();
+state.error = ela.getError();
+
+state.show();
+
 var me = ela.getSelf();
 printUser(me);
 print();
 
+// ----------------------------------------------------------------------------
+
+// nonthreaded ela_run:
+// prompt.readlineAsync();
+// threaded ela_run:
+ela.threading = true;
+
 ela.run();
 
-while (true) {}
+// can only do this if ela.run is threaded...
+while (!state.quit) {
+   cmdline = prompt.readlineTimeout(10);
+   if (cmdline !== '') {
+      cbPrompt(cmdline);
+   }
+}
