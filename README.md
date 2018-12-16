@@ -6,8 +6,6 @@ Uses duktape and carrier native SDK.
 Carrier can now run on main thread or separate thread.  
 
 #### To do
-* filesystem
-* event loop for setTimeout, etc.
 * api socket
 
 <pre>
